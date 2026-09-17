@@ -71,7 +71,7 @@ bool hayFechaHoraValida = false;
 
 unsigned long ultimoPoll = 0;
 unsigned long ultimoIntentoWifi = 0;
-const unsigned long INTERVALO_REINTENTO_WIFI = 10000;  // 30 s entre intentos
+const unsigned long INTERVALO_REINTENTO_WIFI = 30000;  // 30 s entre intentos
 const unsigned long POLL_SESION_MS = 30000;
 
 // E S T A D O S
@@ -698,21 +698,6 @@ void setup() {
   nombreAP = "BIONEA-" + deviceMAC;
   nombreAP.replace(":", "");
 
-  // DEBUG: mostrar algo fijo que sepamos que funciona
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(BLACK);
-  display.setCursor(0, 0);
-  display.println("BIONEA");
-  display.setCursor(0, 12);
-  display.println("Pantalla OK");
-  display.setCursor(0, 32);
-  display.println("Pre-WiFi");
-  display.setCursor(0, 36);
-  display.println(deviceMAC.substring(9));
-  display.display();
-  delay(3000);  // mirá la pantalla 3 segundos
-
   //SECCIÓN DE CONDICION ENTRE CAMPOS DE TRABAJO :)
   if (modoActual == MODO_CAMPO) {
     Serial.println("[MODO] Arrancando en MODO CAMPO (Offline AP)");
@@ -753,12 +738,6 @@ void setup() {
 // ==============================
 void loop() {
   // Actualización constante de periféricos visuales
-  static unsigned long ultimoTick = 0;
-  if (millis() - ultimoTick >= 5000) {
-    ultimoTick = millis();
-    Serial.println("[LOOP] vivo");
-  }
-  
   actualizarPantallaEstado();
 
   // Máquina de estados central
@@ -768,7 +747,7 @@ void loop() {
       estadoActual = ESPERANDO_CONFIGURACION;
       break;
 
-    case ESPERANDO_CONFIGURACION:
+    case ESPERANDO_CONFIGURACION: {
       // Aquí opera el servidor web local (AP Mode) o la espera de órdenes del dashboard
       gestionarBotonFisico();
       server.handleClient();
@@ -800,7 +779,7 @@ void loop() {
 
           WiFi.begin();
           unsigned long inicioIntento = millis();
-          while (WiFi.status() != WL_CONNECTED && millis() - inicioIntento < 5000) {
+          while (WiFi.status() != WL_CONNECTED && millis() - inicioIntento < 15000) {
             gestionarBotonFisico();
             delay(50);
           }
@@ -812,8 +791,8 @@ void loop() {
             sincronizarCierresPendientes();
           }
           else {
-            Serial.println("[WIFI] Falla. Abriendo portal de 2 min...");
-            wm.setConfigPortalTimeout(30);
+            Serial.println("[WIFI] Falla. Abriendo portal de 3 min...");
+            wm.setConfigPortalTimeout(180);
             wm.startConfigPortal(nombreAP.c_str());
             modoOnline = (WiFi.status() == WL_CONNECTED);
             Serial.println(modoOnline ? "[WIFI] Conectado desde portal" : "[WIFI] Portal cerrado sin conexion");
@@ -826,7 +805,7 @@ void loop() {
         consultarSesionAsignada();
         if (sesionIniciada) estadoActual = SESION_PREPARADA;
       }
-      break;
+    } break;
 
     case SESION_PREPARADA:
       // Todo listo para registrar temperatura de los lagartos en campo
