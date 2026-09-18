@@ -40,6 +40,7 @@ String deviceMAC = "";
 String nombreAP = "";
 bool modoOnline = false;
 int medicionNum = 0;
+float tempActual = 0;
 
 String nombreArchivoActual = "";
 String nombreArchivoPendientes = "";
@@ -71,8 +72,10 @@ bool hayFechaHoraValida = false;
 
 unsigned long ultimoPoll = 0;
 unsigned long ultimoIntentoWifi = 0;
+unsigned long ultimoRefreshPantalla = 0; 
 const unsigned long INTERVALO_REINTENTO_WIFI = 30000;  // 30 s entre intentos
 const unsigned long POLL_SESION_MS = 30000;
+const unsigned long INTERVALO_REFRESH_PANTALLA = 1000;
 
 // E S T A D O S
 enum EstadoBionea {
@@ -97,6 +100,9 @@ bool guardarEnSD(String linea);
 void guardarPendiente(String linea);
 void limpiarSesion();
 bool hayPendientes();
+void actualizarPantallaEstado();
+void mostrarPantallaReconectando();
+void mostrarPantallaPortal();
 
 // I N C L U S I Ó N   D E   M Ó D U L O S   L O C A L E S
 #include "config_red.h" 
@@ -123,6 +129,13 @@ void inicializarPantalla() {
   display.setTextColor(BLACK);
 }
 
+String truncar(String s, int maxChars) {
+  if (s.length() > maxChars) {
+    return s.substring(0, maxChars);
+  }
+  return s;
+}
+
 void actualizarPantallaEstado() {
   display.clearDisplay();
   
@@ -143,68 +156,136 @@ void actualizarPantallaEstado() {
       display.print("Iniciando...");
       break;
       
-    case ESPERANDO_CONFIGURACION:
-      display.print("Esperando orden");
+    case ESPERANDO_CONFIGURACION: {
+      display.setCursor(0, 12);
+      display.print("Esperando web");
       display.setCursor(0, 24);
       display.print("MAC:");
       display.setCursor(0, 34);
-      display.print(deviceMAC.substring(9)); // Mostrar parte de la MAC
-      break;
       
-    case SESION_PREPARADA:
+      // Quitar los dos puntos y mostrar los 12 chars
+      String macLimpia = deviceMAC;
+      macLimpia.replace(":", "");   // "08D1F9ED9A40"
+      display.print(macLimpia);
+      } break;
+      
+    case SESION_PREPARADA: {
       display.print("Lista sesion");
       display.setCursor(0, 24);
-      display.print("Ind: " + individuoCodigo);
-      break;
+      display.print(truncar("Ind: " + individuoCodigo, 14));
+      } break;
       
-    case SESION_ACTIVA:
+    case SESION_ACTIVA: {
       // Mostrar individuo y temperatura actual en tiempo real
-      display.print("Ind: " + individuoCodigo);
+      display.print(truncar("Ind: " + individuoCodigo, 14));
       display.setCursor(0, 22);
       display.print("Temp: ");
-      display.print(termopar.readCelsius(), 1);
+      display.print(tempActual, 1);
       display.print(" C");
       
       // Mostrar límites y errores o estado de sensores
       display.setCursor(0, 32);
-      display.print("Rango:");
-      display.print(tempMin, 0);
-      display.print("-");
-      display.print(tempMax, 0);
-      
-      // Tiempo restante aproximado o contador de mediciones
-      display.setCursor(0, 42);
       display.print("Medicion #");
       display.print(medicionNum);
-      break;
+      } break;
       
-    case SESION_FINALIZADA:
-      display.print("Sesion Finalizada");
-      break;
+    case SESION_FINALIZADA: {
+      display.print("Sesion");
+      display.setCursor(0, 24);
+      display.print("Finalizada");
+      } break;
       
-    case SINCRONIZANDO:
-      display.print("Sincronizando...");
+    case SINCRONIZANDO: {
+      display.print("Sincronizando");
       display.setCursor(0, 24);
       display.print("Subiendo datos");
-      break;
+      } break;
       
-    case ERROR_CRITICO:
-      display.print("!ERROR CRITICO!");
+    case ERROR_CRITICO: {
+      display.print("!ERROR!");
       display.setCursor(0, 24);
-      if (!rtcDisponible()) display.print("Falta RTC");
-      if (!sdDisponible()) display.print("Falta MicroSD");
-      break;
+      if (!rtcDisponible()) {
+        display.print("Falta RTC");
+      } else if (!sdDisponible()) {
+        display.print("Falta MicroSD");
+      } else {
+        display.print("Hardware");
+      }
+      } break;
   }
   
   display.display(); // Refrescar la pantalla física
 }
 
+void mostrarPantallaReconectando() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(BLACK);
+
+  display.setCursor(0, 0);
+  display.print("LAB [OFF]");
+  display.drawLine(0, 9, 84, 9, BLACK);
+
+  display.setCursor(0, 12);
+  display.print("Reconectando");
+  display.setCursor(0, 24);
+  display.print("WiFi...");
+  display.setCursor(0, 36);
+  display.print("Espera 15s");
+
+  display.display();
+}
+
+void mostrarPantallaPortal() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(BLACK);
+
+  display.setCursor(0, 0);
+  display.print("LAB [OFF]");
+  display.drawLine(0, 9, 84, 9, BLACK);
+
+  display.setCursor(0, 12);
+  display.print("Portal WiFi");
+
+  // Mostrar nombre del AP (truncado)
+  String ssid = "BIONEA-" + deviceMAC.substring(12);  // "BIONEA-ED:9A:40"
+  ssid.replace(":", "");
+  display.setCursor(0, 24);
+  display.print(truncar(ssid, 14));
+
+  display.setCursor(0, 36);
+  display.print("192.168.4.1");
+
+  display.display();
+}
+
 void errorCritico() {
   Serial.println("[ERROR] Estado critico alcanzado - bloqueando");
   estadoActual = ERROR_CRITICO;
+  actualizarPantallaEstado();
+
+  bool botonAnterior = HIGH;
+  unsigned long ultimoRefresh = 0;
+
   while (true) {
-    actualizarPantallaEstado();  // seguimos mostrando el estado en pantalla
-    delay(1000);
+    bool botonActual = digitalRead(BOTON_PIN);
+
+    if (botonAnterior == HIGH && botonActual == LOW) {
+      delay(50);
+      if (digitalRead(BOTON_PIN) == LOW) {
+        Serial.println("[ERROR] Reset manual solicitado por boton");
+        delay(500);
+        ESP.restart();
+      }
+    }
+    botonAnterior = botonActual;
+
+    if (millis() - ultimoRefresh >= 1000) {
+      ultimoRefresh = millis();
+      actualizarPantallaEstado();
+    }
+    delay(50);
   }
 }
 
@@ -430,8 +511,6 @@ void ejecutarCicloSesion() {
   unsigned long duracion = (unsigned long)minutosSesion * 60 * 1000;
   unsigned long inicio = millis();
 
-  bool hardwareCriticoPerdido = false;
-
   while (millis() - inicio < duracion) {
 
     if (!sesionIniciada) {
@@ -443,24 +522,15 @@ void ejecutarCicloSesion() {
     if (!rtcDisponible()) {
       Serial.println("[ERROR CRITICO] RTC desconectado durante la sesion");
       errorCritico();
-
-      sesionInterrumpidaPorError = true;
-      sesionIniciada = false;
-      estadoActual = ERROR_CRITICO;
-      break;
     }
 
     if (!sdDisponible()) {
       Serial.println("[ERROR CRITICO] MicroSD desconectada durante la sesion");
       errorCritico();
-
-      sesionInterrumpidaPorError = true;
-      sesionIniciada = false;
-
-      break;
     }
 
     float temp = termopar.readCelsius();
+    tempActual = temp;
     DateTime ahora = rtc.now();
     ultimaFechaHoraValida = ahora;
     hayFechaHoraValida = true;
@@ -598,6 +668,8 @@ void ejecutarCicloSesion() {
       }
     }
 
+    actualizarPantallaEstado();
+    ultimoRefreshPantalla = millis();
     // Ahora, viene la espera...
     unsigned long tiempoUsado = millis() - inicioMedicion;
 
@@ -619,21 +691,18 @@ void ejecutarCicloSesion() {
         if (!rtcDisponible()) {
           Serial.println("[ERROR CRITICO] RTC desconectado durante la sesion");
           errorCritico();
-
-          sesionInterrumpidaPorError = true;
-          sesionIniciada = false;
-          break;
         }
 
         if (!sdDisponible()) {
           Serial.println("[ERROR CRITICO] MicroSD desconectada durante la sesion");
           errorCritico();
-
-          sesionInterrumpidaPorError = true;
-          sesionIniciada = false;
-
-          break;
         }
+
+        if (millis() - ultimoRefreshPantalla >= INTERVALO_REFRESH_PANTALLA) {
+          ultimoRefreshPantalla = millis();
+          actualizarPantallaEstado();
+        }
+
         // finalizar si ya se cumplio el tiempo
         unsigned long transcurrido = millis() - inicioEspera;
         if (transcurrido >= tiempoRestante) break;
@@ -642,7 +711,7 @@ void ejecutarCicloSesion() {
         if (falta > 1000) {
           delay(1000);
         } else {
-          delay(falta);    // ← agregar ;
+          delay(falta);
         }
       }
     }
@@ -662,27 +731,28 @@ void setup() {
 
   //wm.resetSettings();
   pinMode(BOTON_PIN, INPUT_PULLUP);
+  // 1. Inicializamos pantalla:
+  inicializarPantalla();
+  Serial.println("Pantalla OK");
 
-  // RTC
+  // 2. Inicializamos RTC
   Wire.begin(21, 22);
   if (!rtc.begin()) {
     Serial.println("❌ RTC no encontrado");
-    while (1) delay(1000);
+    errorCritico();
   }
   Serial.println("RTC OK");
 
-  // MicroSD
+  // 3. Inicializamos MicroSD
   pinMode(MAX6675_CS, OUTPUT);
   digitalWrite(MAX6675_CS, HIGH);
   SPI.begin(18, 19, 23, 5);
   if (!SD.begin(SD_CS)) {
     Serial.println("❌ MicroSD no encontrada");
-    while (1) delay(1000);
+    errorCritico();
   }
   Serial.println("MicroSD OK");
-  
-  inicializarPantalla(); 
-  Serial.println("Pantalla OK");
+
 
   // WiFi
   uint8_t macBytes[6];
@@ -709,9 +779,34 @@ void setup() {
     WiFi.mode(WIFI_STA);
     WiFi.begin();
 
+    // "CONECTANDO..."
     unsigned long inicioIntento = millis();
+    unsigned long ultimoRefreshWifi = 0;
+
     while (WiFi.status() != WL_CONNECTED && millis() - inicioIntento < 15000) {
-      delay(100);
+      if (millis() - ultimoRefreshWifi >= 500) {
+        ultimoRefreshWifi = millis();
+        int segundosRestantes = (15000 - (millis() - inicioIntento)) / 1000;
+
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(BLACK);
+
+        display.setCursor(0, 0);
+        display.print("LAB");
+        display.drawLine(0, 9, 84, 9, BLACK);
+
+        display.setCursor(0, 12);
+        display.print("Conectando red");
+        display.setCursor(0, 24);
+        display.print("Esperando...");
+        display.setCursor(0, 36);
+        display.print(segundosRestantes);
+        display.print("s");
+
+        display.display();
+      }
+      delay(50);
     }
 
     modoOnline = (WiFi.status() == WL_CONNECTED);
@@ -731,6 +826,8 @@ void setup() {
     modoOnlineAnterior = modoOnline;
     server.begin();
   }
+
+  actualizarPantallaEstado();
 }
 
 // ==============================
@@ -738,13 +835,21 @@ void setup() {
 // ==============================
 void loop() {
   // Actualización constante de periféricos visuales
-  actualizarPantallaEstado();
+  static unsigned long ultimoRefreshGlobal = 0;
+  if (millis() - ultimoRefreshGlobal >= INTERVALO_REFRESH_PANTALLA) {
+    ultimoRefreshGlobal = millis();
+    actualizarPantallaEstado();
+  }
 
   // Máquina de estados central
   switch (estadoActual) {
     case INICIANDO:
+      if (!rtcDisponible() || !sdDisponible()) {
+        errorCritico();
+      }
       // Verificaciones iniciales superadas, pasa a la escucha o configuración
       estadoActual = ESPERANDO_CONFIGURACION;
+      actualizarPantallaEstado();
       break;
 
     case ESPERANDO_CONFIGURACION: {
@@ -752,7 +857,15 @@ void loop() {
       gestionarBotonFisico();
       server.handleClient();
 
-      // ▼▼▼ ACTUALIZAR modoOnline CON EL ESTADO REAL DEL WIFI ▼▼▼
+      if (!rtcDisponible()) {
+        Serial.println("[ERROR CRITICO] RTC desconectado en espera");
+        errorCritico();   // ← esto ya bloquea en while(true)
+      }
+      if (!sdDisponible()) {
+        Serial.println("[ERROR CRITICO] SD desconectada en espera");
+        errorCritico();
+      }
+
       bool wifiReal = (WiFi.status() == WL_CONNECTED);
       if (wifiReal != modoOnline) {
         modoOnline = wifiReal;
@@ -763,11 +876,12 @@ void loop() {
         } else {
           Serial.println("[WIFI] Perdido (detectado en loop)");
         }
+        actualizarPantallaEstado();
       }
-      // ▲▲▲ FIN DEL FIX ▲▲▲
       
       if (sesionIniciada) {
         estadoActual = SESION_PREPARADA;
+        actualizarPantallaEstado();
         break;
       }
 
@@ -776,6 +890,8 @@ void loop() {
         if (millis() - ultimoIntentoWifi >= INTERVALO_REINTENTO_WIFI) {
           ultimoIntentoWifi = millis();
           Serial.println("[WIFI] Intento de reconexión...");
+
+          mostrarPantallaReconectando();
 
           WiFi.begin();
           unsigned long inicioIntento = millis();
@@ -789,13 +905,16 @@ void loop() {
             Serial.println("[WIFI] Reconectado");
             sincronizarPendientesAnteriores();
             sincronizarCierresPendientes();
+            actualizarPantallaEstado();
           }
           else {
             Serial.println("[WIFI] Falla. Abriendo portal de 3 min...");
+            mostrarPantallaPortal();
             wm.setConfigPortalTimeout(180);
             wm.startConfigPortal(nombreAP.c_str());
             modoOnline = (WiFi.status() == WL_CONNECTED);
             Serial.println(modoOnline ? "[WIFI] Conectado desde portal" : "[WIFI] Portal cerrado sin conexion");
+            actualizarPantallaEstado();
           }
         }
       }
@@ -803,14 +922,21 @@ void loop() {
       if (modoOnline && millis() - ultimoPoll >= POLL_SESION_MS) {
         ultimoPoll = millis();
         consultarSesionAsignada();
-        if (sesionIniciada) estadoActual = SESION_PREPARADA;
+        if (sesionIniciada) {
+          estadoActual = SESION_PREPARADA;
+          actualizarPantallaEstado();
+        }
       }
     } break;
 
     case SESION_PREPARADA:
+      if (!rtcDisponible() || !sdDisponible()) {
+        errorCritico();
+      }
       // Todo listo para registrar temperatura de los lagartos en campo
       delay(1000); // Breve pausa de confirmación visual
       estadoActual = SESION_ACTIVA;
+      actualizarPantallaEstado();
       break;
 
     case SESION_ACTIVA: 
@@ -819,26 +945,29 @@ void loop() {
       // Al finalizar la sesión de campo (por tiempo o botón), transiciona:
       if (!sesionIniciada) {
         estadoActual = SINCRONIZANDO;
+        actualizarPantallaEstado();
       }
-      // estadoActual = SINCRONIZANDO;
       break;
 
     case SINCRONIZANDO:
       // Volcado automático de datos desde la SD hacia Firebase al detectar WiFi
+      if (!rtcDisponible() || !sdDisponible()) {
+        errorCritico();
+      }
+
       ejecutarVentanaSincronizacionFinal();
       estadoActual = ESPERANDO_CONFIGURACION;
+      actualizarPantallaEstado();
       break;
       
     case SESION_FINALIZADA:
       // Reseteo de banderas y preparación para el siguiente ciclo
       estadoActual = ESPERANDO_CONFIGURACION;
+      actualizarPantallaEstado();
       break;
 
     case ERROR_CRITICO:
       errorCritico();
-      while (true) {
-        delay(1000); // Bloqueo de seguridad ante fallas críticas
-      }
       break;
   }
 }
