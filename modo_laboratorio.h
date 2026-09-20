@@ -15,8 +15,6 @@ extern String sessionId;
 extern String individuoCodigo;
 extern String especieActual;
 extern String deviceMAC;
-extern float tempMin;
-extern float tempMax;
 extern int minutosSesion;
 extern int intervaloSegundos;
 extern int medicionNum;
@@ -67,12 +65,6 @@ int enviarMedicion(String body) {
 }
 
 String armarJsonMedicion(String idMedicion, String fecha, String hora, float temp) {
-
-  String alerta =
-    (temp < tempMin || temp > tempMax)
-      ? "FUERA DE RANGO"
-      : "OK";
-
   StaticJsonDocument<512> doc;
 
   doc["id_medicion"] = idMedicion;
@@ -83,9 +75,6 @@ String armarJsonMedicion(String idMedicion, String fecha, String hora, float tem
   doc["individuo"] = individuoCodigo;
   doc["especie"] = especieActual;
   doc["temperatura"] = temp;
-  doc["temp_min"] = tempMin;
-  doc["temp_max"] = tempMax;
-  doc["alerta"] = alerta;
 
   String body;
 
@@ -105,50 +94,23 @@ String crearJsonDesdeLinea(String linea) {
   int c4 = linea.indexOf(',', c3 + 1);
   int c5 = linea.indexOf(',', c4 + 1);
   int c6 = linea.indexOf(',', c5 + 1);
-  int c7 = linea.indexOf(',', c6 + 1);
-  int c8 = linea.indexOf(',', c7 + 1);
-  int c9 = linea.indexOf(',', c8 + 1);
 
   if (
     //si por alguna razón algun campo o coma no existe, retorna vacío
     c1 == -1 || c2 == -1 || c3 == -1 ||
-    c4 == -1 || c5 == -1 || c6 == -1 ||
-    c7 == -1 || c8 == -1 || c9 == -1 
+    c4 == -1 || c5 == -1 || c6 == -1
   ) {
     Serial.println("[SYNC] ❌ Formato de pendiente invalido");
     return "";
   }
 
-  String idMedicion =
-    linea.substring(0, c1);
-
-  String sid =
-    linea.substring(c1 + 1, c2);
-
-  String individuo =
-    linea.substring(c2 + 1, c3);
-
-  String especie =
-    linea.substring(c3 + 1, c4);
-
-  String fecha =
-    linea.substring(c4 + 1, c5);
-
-  String hora =
-    linea.substring(c5 + 1, c6);
-
-  String temperatura =
-    linea.substring(c6 + 1, c7);
-
-  String tmin =
-    linea.substring(c7 + 1, c8);
-
-  String tmax =
-    linea.substring(c8 + 1, c9);
-
-  String alerta =
-    linea.substring(c9 + 1);
-
+  String idMedicion = linea.substring(0, c1);
+  String sid = linea.substring(c1 + 1, c2);
+  String individuo = linea.substring(c2 + 1, c3);
+  String especie = linea.substring(c3 + 1, c4);
+  String fecha = linea.substring(c4 + 1, c5);
+  String hora = linea.substring(c5 + 1, c6);
+  String temperatura = linea.substring(c6 + 1);
 
   StaticJsonDocument<512> doc;
 
@@ -160,9 +122,6 @@ String crearJsonDesdeLinea(String linea) {
   doc["individuo"] = individuo;
   doc["especie"] = especie;
   doc["temperatura"] = temperatura.toFloat();
-  doc["temp_min"] = tmin.toFloat();
-  doc["temp_max"] = tmax.toFloat();
-  doc["alerta"] = alerta;
 
   String body;
 
@@ -224,17 +183,8 @@ void consultarSesionAsignada() {
     int duracionRecibida = doc["duracion"] | 60;
     int intervaloRecibido = doc["intervalo"] | 1;
 
-    float tempMinRecibida =
-      doc["temp_min"].isNull() ? 0 : doc["temp_min"].as<float>();
-
-    float tempMaxRecibida =
-      doc["temp_max"].isNull() ? 0 : doc["temp_max"].as<float>();
-
     minutosSesion = duracionRecibida;
     intervaloSegundos = intervaloRecibido * 60;
-
-    tempMin = tempMinRecibida;
-    tempMax = tempMaxRecibida;
 
     Serial.println("------- DATOS DEL DASHBOARD -------");
 
@@ -254,12 +204,6 @@ void consultarSesionAsignada() {
     Serial.print("Intervalo recibido: ");
     Serial.print(intervaloRecibido);
     Serial.println(" min");
-
-    Serial.print("Temp minima: ");
-    Serial.println(tempMinRecibida);
-
-    Serial.print("Temp maxima: ");
-    Serial.println(tempMaxRecibida);
 
     Serial.println("-----------------------------------");
   

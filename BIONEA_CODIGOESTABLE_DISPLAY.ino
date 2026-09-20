@@ -34,8 +34,6 @@ RTC_DS3231 rtc;
 bool sesionIniciada = false;
 int minutosSesion = 0;
 int intervaloSegundos = 35;
-float tempMin = 0;
-float tempMax = 0;
 String deviceMAC = "";
 String nombreAP = "";
 bool modoOnline = false;
@@ -380,7 +378,7 @@ bool inicializarCSV(String nombreArchivo) {
       Serial.println("[SD] ❌ No se pudo crear el csv");
       return false;
     }
-    archivo.println("ID_MEDICION,SESSION_ID,INDIVIDUO,ESPECIE,FECHA,HORA,TEMPERATURA,TEMP_MIN,TEMP_MAX,ALERTA");
+    archivo.println("ID_MEDICION,SESSION_ID,INDIVIDUO,ESPECIE,FECHA,HORA,TEMPERATURA");
     archivo.close();
   }
   return true;
@@ -415,7 +413,7 @@ void guardarPendiente(String linea) {
     return;
   }
   if (archivoNuevo) {
-    archivoPendientes.println("ID_MEDICION,SESSION_ID,INDIVIDUO,ESPECIE,FECHA,HORA,TEMPERATURA,TEMP_MIN,TEMP_MAX,ALERTA");
+    archivoPendientes.println("ID_MEDICION,SESSION_ID,INDIVIDUO,ESPECIE,FECHA,HORA,TEMPERATURA");
   }
 
   archivoPendientes.println(linea);
@@ -498,11 +496,6 @@ String generarIdMedicion(DateTime fecha, int numeroMedicion) {
 }
 
 String armarLineaCSV(String idMedicion, String fecha, String hora, float temp) {
-  String alerta =
-    (temp < tempMin || temp > tempMax)
-      ? "FUERA DE RANGO"
-      : "OK";
-
   return
     idMedicion + "," +
     sessionId + "," +
@@ -510,10 +503,7 @@ String armarLineaCSV(String idMedicion, String fecha, String hora, float temp) {
     especieActual + "," +
     fecha + "," +
     hora + "," +
-    String(temp, 2) + "," +
-    String(tempMin, 1) + "," +
-    String(tempMax, 1) + "," +
-    alerta;
+    String(temp, 2);
 }
 
 void limpiarSesion() {
@@ -527,9 +517,6 @@ void limpiarSesion() {
 
   minutosSesion = 0;
   intervaloSegundos = 35;
-
-  tempMin = 0;
-  tempMax = 0;
 
   medicionNum = 0;
   erroresSensorConsecutivos = 0;
@@ -554,11 +541,6 @@ void ejecutarCicloSesion() {
   Serial.print("Intervalo:  ");
   Serial.print(intervaloSegundos);
   Serial.println(" seg");
-  Serial.print("Rango:      ");
-  Serial.print(tempMin);
-  Serial.print("°C - ");
-  Serial.print(tempMax);
-  Serial.println("°C");
   Serial.println("==============================");
 
   unsigned long duracion = (unsigned long)minutosSesion * 60 * 1000;
@@ -633,7 +615,7 @@ void ejecutarCicloSesion() {
       Serial.println(MAX_ERRORES_SENSOR);
 
       String lineaError =
-        idMedicion + "," + sessionId + "," + individuoCodigo + "," + especieActual + "," + String(fecha) + "," + String(hora) + "," + "," + String(tempMin, 1) + "," + String(tempMax, 1) + "," + "ERROR_SENSOR";
+        idMedicion + "," + sessionId + "," + individuoCodigo + "," + especieActual + "," + String(fecha) + "," + String(hora) + "ERROR_SENSOR";
 
       if (!guardarEnSD(lineaError)) {
         Serial.println("[ERROR CRITICO] No se pudo registrar el error del sensor");
@@ -660,7 +642,6 @@ void ejecutarCicloSesion() {
     else {
 
       erroresSensorConsecutivos = 0;
-      String alerta = (temp < tempMin || temp > tempMax) ? "FUERA DE RANGO" : "OK";
 
       Serial.println("------------------------------");
       Serial.print("Medición #");
@@ -670,8 +651,6 @@ void ejecutarCicloSesion() {
       Serial.print("Temperatura:  ");
       Serial.print(temp);
       Serial.println(" °C");
-      Serial.print("Alerta:       ");
-      Serial.println(alerta);
       Serial.println("------------------------------");
 
       String lineaCSV =
@@ -808,6 +787,16 @@ void setup() {
     errorCritico();
   }
   Serial.println("MicroSD OK");
+
+  if (SD.exists("/TEMP.PND")) {
+    Serial.println("[SD] Detectado TEMP.PND huerfano, borrando...");
+    if (SD.remove("/TEMP.PND")) {
+      Serial.println("[SD] TEMP.PND borrado");
+    }
+    else {
+      Serial.println("[SD] NO SE PUDO BORRAR TEMP.PND");
+    }
+  }
 
 
   // WiFi

@@ -12,8 +12,6 @@ extern WebServer server;
 extern bool sesionIniciada;
 extern int minutosSesion;
 extern int intervaloSegundos;
-extern float tempMin;
-extern float tempMax;
 extern String individuoCodigo;
 extern String especieActual;
 extern String sessionId;
@@ -58,12 +56,6 @@ const char HTML_MODO_CAMPO[] PROGMEM = R"rawliteral(
       <label>Intervalo Muestreo (Segundos):</label>
       <input type="number" name="intervalo" value="35" min="35" required>
       
-      <label>Temperatura Mínima (°C):</label>
-      <input type="number" step="0.1" name="tmin" value="20.0" required>
-      
-      <label>Temperatura Máxima (°C):</label>
-      <input type="number" step="0.1" name="tmax" value="35.0" required>
-      
       <button type="submit">INICIAR SESIÓN LOCAL</button>
     </form>
   </div>
@@ -81,8 +73,6 @@ inline void handleIniciarCampo() {
     especieActual = server.arg("especie");
     minutosSesion = server.arg("duracion").toInt();
     intervaloSegundos = server.arg("intervalo").toInt();
-    tempMin = server.arg("tmin").toFloat();
-    tempMax = server.arg("tmax").toFloat();
 
     sessionId = "CAMPO_" + individuoCodigo;
     nombreArchivoActual = "CAMPO_" + individuoCodigo + ".csv";
