@@ -712,6 +712,9 @@ void ejecutarCicloSesion() {
             guardarPendiente(lineaPendiente);
           }
         }
+        else {
+          marcarComoEnviado(idMedicion);
+        }
         
         gestionarConexion();
 
