@@ -875,12 +875,11 @@ void setup() {
     else {
       Serial.println("[WIFI] Sin conexion al arrancar. Se reintentara en el loop.");
     }
-
+  
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
 
     modoOnlineAnterior = modoOnline;
-    server.begin();
   }
 
   actualizarPantallaEstado();
@@ -965,6 +964,7 @@ void loop() {
           }
           else {
             Serial.println("[WIFI] Falla. Abriendo portal de 3 min...");
+
             mostrarPantallaPortal();
             wm.setConfigPortalTimeout(180);
             wm.startConfigPortal(nombreAP.c_str());
