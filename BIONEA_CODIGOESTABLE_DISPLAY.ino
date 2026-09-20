@@ -53,6 +53,7 @@ const int MAX_ERRORES_SENSOR = 3;
 
 // VARIABLES DE SESIÓN
 String sessionId = "";
+String ultimoSessionIdProcesado = "";
 String individuoCodigo = "";
 String especieActual = "";
 
@@ -763,6 +764,14 @@ void setup() {
   prefs.begin("bionea_cfg", false);
   modoActual = (ModoDispositivo)prefs.getUInt("modo", MODO_LABORATORIO);
   prefs.end();
+
+  //Para no agarrar una sesión que ya se midió
+  prefs.begin("bionea_cfg", true);
+  ultimoSessionIdProcesado = prefs.getString("ultima_sesion", "");
+  prefs.end();
+
+  Serial.print("[NVS] Ultima sesion procesada: ");
+  Serial.println(ultimoSessionIdProcesado);
 
   //wm.resetSettings();
   pinMode(BOTON_PIN, INPUT_PULLUP);

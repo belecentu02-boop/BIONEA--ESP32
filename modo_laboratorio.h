@@ -1,6 +1,6 @@
 #ifndef MODO_LABORATORIO_H
 #define MODO_LABORATORIO_H
-
+#include <Preferences.h>
 #include <Arduino.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -13,6 +13,8 @@ extern const char* API_KEY;
 // VARIABLES / OBJETOS DEL .INO
 extern String sessionId;
 extern String individuoCodigo;
+extern String ultimoSessionIdProcesado;
+extern Preferences prefs;
 extern String especieActual;
 extern String deviceMAC;
 extern int minutosSesion;
@@ -177,6 +179,14 @@ void consultarSesionAsignada() {
     }
 
     sessionId = doc["session_id"].as<String>();
+
+    if (sessionId == ultimoSessionIdProcesado) {
+      Serial.print("[POLL] Sesion ya procesada, vamos a ignorarla: ");
+      Serial.println(sessionId);
+      http.end();
+      return;
+    }
+
     individuoCodigo = doc["individuo"].as<String>();
     especieActual = doc["especie"].as<String>();
 
@@ -250,6 +260,14 @@ void consultarSesionAsignada() {
       }
 
       sesionIniciada = true;
+      ultimoSessionIdProcesado = sessionId;
+
+      prefs.begin("bionea_cfg", false);
+      prefs.putString("ultima_sesion", ultimoSessionIdProcesado);
+      prefs.end();
+
+      Serial.print("[NVS] Guardado ultimoSessionIdProcesado: ");
+      Serial.println(ultimoSessionIdProcesado);
 
       Serial.println("[PANEL] Sesion iniciada desde dashboard");
     }
