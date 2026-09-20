@@ -32,6 +32,8 @@ extern void limpiarSesion();
 extern bool guardarEnSD(String linea);
 extern void guardarPendiente(String linea);
 extern bool hayPendientes();
+extern bool idYaEnviado(String idMedicion);
+extern void marcarComoEnviado(String idMedicion); 
 
 int enviarMedicion(String body) {
   
@@ -398,6 +400,8 @@ void sincronizarPendientes() {
 
   while (pendientes.available()) {
 
+    delay(0); // por el WDT
+
     String linea =
       pendientes.readStringUntil('\n');
 
@@ -408,9 +412,18 @@ void sincronizarPendientes() {
     }
 
     if (intentosRealizados < 5 && !detenerIntentos) {
+      //Extraemos el id_medicion (ya que es el primer campo)
+      int primeraComa = linea.indexOf(',');
+      String idMedicion = linea.substring(0, primeraComa);
 
-      String body =
-        crearJsonDesdeLinea(linea);
+      //Si ya se envio antes, la salteamos
+      if (idYaEnviado(idMedicion)) {
+        Serial.print("[SYNC] Saltando ya enviada: ");
+        Serial.print(idMedicion);
+        continue;
+      }
+
+      String body = crearJsonDesdeLinea(linea);
 
       if (body == "") {
         temporal.println(linea);
@@ -418,13 +431,12 @@ void sincronizarPendientes() {
         continue;
       }
 
-      int codigoRespuesta =
-        enviarMedicion(body);
-
+      int codigoRespuesta = enviarMedicion(body);
       intentosRealizados++;
 
       if (codigoRespuesta >= 200 && codigoRespuesta < 300) {
-
+        // Marcamos como enviado en el log.
+        marcarComoEnviado(idMedicion);
       } else {
         // Sigue pendiente
         quedanPendientes = true;
@@ -488,6 +500,8 @@ void sincronizarCierresPendientes() {
   }
   File archivo = raiz.openNextFile();
   while (archivo) {
+    delay(0);
+
     String nombre = archivo.name();
 
     if (nombre.startsWith("/")) {
@@ -575,6 +589,8 @@ void sincronizarPendientesAnteriores() {
   String nombrePendientesOriginal = nombreArchivoPendientes;
 
   for (int i = 0; i < cantidadEncontrada; i++) {
+    delay(0);
+
     if (WiFi.status() != WL_CONNECTED) {
       Serial.println("[INICIO] Se perdió el wifi, detenemos por seguridad la sincronizacion!!");
       break;

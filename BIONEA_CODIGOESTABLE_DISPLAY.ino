@@ -41,6 +41,7 @@ String nombreAP = "";
 bool modoOnline = false;
 int medicionNum = 0;
 float tempActual = 0;
+String motivoError = "";
 
 String nombreArchivoActual = "";
 String nombreArchivoPendientes = "";
@@ -204,13 +205,7 @@ void actualizarPantallaEstado() {
     case ERROR_CRITICO: {
       display.print("!ERROR!");
       display.setCursor(0, 24);
-      if (!rtcDisponible()) {
-        display.print("Falta RTC");
-      } else if (!sdDisponible()) {
-        display.print("Falta MicroSD");
-      } else {
-        display.print("Hardware");
-      }
+      display.print(motivoError);
       } break;
   }
   
@@ -263,6 +258,19 @@ void mostrarPantallaPortal() {
 void errorCritico() {
   Serial.println("[ERROR] Estado critico alcanzado - bloqueando");
   estadoActual = ERROR_CRITICO;
+
+  // Determinar el motivo UNA SOLA VEZ
+  if (!rtcDisponible()) {
+    motivoError = "Falta RTC";
+  } else if (!sdDisponible()) {
+    motivoError = "Falta MicroSD";
+  } else {
+    motivoError = "Hardware";
+  }
+
+  Serial.print("[ERROR] Motivo: ");
+  Serial.println(motivoError);
+
   actualizarPantallaEstado();
 
   bool botonAnterior = HIGH;
@@ -386,6 +394,7 @@ bool guardarEnSD(String linea) {
   }
   size_t bytesEscritos = archivo.println(linea);
 
+  archivo.flush();
   archivo.close();
 
   if (bytesEscritos == 0) {
@@ -410,6 +419,7 @@ void guardarPendiente(String linea) {
   }
 
   archivoPendientes.println(linea);
+  archivoPendientes.flush();
   archivoPendientes.close();
 
   Serial.print("[DEBUG PND] Archivo: /");
@@ -424,6 +434,49 @@ void guardarPendiente(String linea) {
 
   Serial.println("[SD] ⚠️ Medición agregada a pendientes");
 }
+
+// EVITAR DUPLICACIÓN DE ENVIO DE DATOS
+
+bool idYaEnviado(String idMedicion) {
+  if (!SD.exists("/sent.log")) {
+    return false;
+  }
+
+  File log = SD.open("/sent.log", FILE_READ);
+  if (!log) {
+    Serial.println("[SENT] No se pudo abrir sent.log");
+    return false;
+  }
+
+  while (log.available()) {
+    String linea = log.readStringUntil('\n');
+    linea.trim();
+    if (linea == idMedicion) {
+      log.close();
+      return true;
+    }
+  }
+
+  log.close();
+  return false;
+}
+
+void marcarComoEnviado(String idMedicion) {
+  File log = SD.open("/sent.log", FILE_APPEND);
+  if (!log) {
+    Serial.println("[SENT] No se pudo abrir sent.log para escribir");
+    return;
+  }
+
+  log.println(idMedicion);
+  log.flush();
+  log.close();
+
+  Serial.print("[SENT] Marcado como enviado: ");
+  Serial.println(idMedicion);
+}
+
+//
 
 String generarIdMedicion(DateTime fecha, int numeroMedicion) {
   String macSinDosPuntos = deviceMAC;
