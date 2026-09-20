@@ -5,8 +5,8 @@
 #include <WiFi.h>
 #include <WiFiManager.h>
 
-const char* SERVER_URL = "https://proyecto2030.onrender.com";
-const char* API_KEY = "a33c1743d4c5a9d909e012bc220489d73cecc4c861b8ea4a";
+// Credenciales privadas (no se suben a GitHub)
+#include "secrets.h"
 
 extern WiFiManager wm;
 

@@ -1,0 +1,16 @@
+# Credenciales privadas
+secrets.h
+
+# Archivos de build de Arduino
+build/
+*.bin
+*.elf
+*.hex
+
+# Datos de SD
+*.csv
+*.pnd
+
+# Sistema
+.DS_Store
+Thumbs.db
